@@ -64,6 +64,7 @@
       display: grid;
       grid-template-rows: auto 1fr auto;
       padding: calc(10px + var(--safe-top)) 12px calc(10px + var(--safe-bottom));
+      pointer-events: none;
     }
 
     #scene {
@@ -538,7 +539,7 @@
     const scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0x050814, 18, 52);
 
-    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 140);
+    const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 140);
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setClearColor(0x000000, 0);
@@ -821,7 +822,7 @@
       const pitch = 1 + gap;
       const total = size * pitch - gap;
       boardGroup.position.set(-total / 2 + .5, 0, -total / 2 + .5);
-      boardGroup.rotation.set(-0.48, 0, 0.18);
+      boardGroup.rotation.set(0, 0, 0);
 
       const baseMat = getMat('base', { color: t.base, roughness: .48, metalness: .55, emissive: t.accent, emissiveIntensity: .04 });
       baseMesh = new THREE.Mesh(geom.base, baseMat);
@@ -1365,11 +1366,16 @@
 
     function resetCamera(instant = false) {
       const s = state.size || 8;
-      const dist = clamp(s * 1.8, 9.2, 22);
-      const target = { x: 0, y: dist * .72, z: dist * 1.02 };
-      if (instant) camera.position.set(target.x, target.y, target.z);
-      else animate(camera.position, target, 420, easeOutCubic);
-      camera.lookAt(0, 0, 0);
+      const dist = clamp(s * 1.55, 9.8, 20.5);
+      const target = { x: 0, y: dist * 1.28, z: dist * .62 };
+      const finish = () => camera.lookAt(0, 0, 0);
+      if (instant) {
+        camera.position.set(target.x, target.y, target.z);
+        finish();
+      } else {
+        animate(camera.position, target, 420, easeOutCubic, 0, null, finish);
+      }
+      boardGroup.rotation.set(0, 0, 0);
     }
 
     function resize() {
@@ -1410,9 +1416,9 @@
         clearTimeout(input.longTimer);
       }
       if (input.moved) {
-        boardGroup.rotation.y += dx * .006;
-        boardGroup.rotation.x = clamp(boardGroup.rotation.x + dy * .004, -0.82, -0.22);
-        boardGroup.rotation.z = clamp(boardGroup.rotation.z + dx * .0012, -0.45, 0.45);
+        boardGroup.rotation.y = clamp(boardGroup.rotation.y + dx * .0045, -0.75, 0.75);
+        boardGroup.rotation.x = clamp(boardGroup.rotation.x + dy * .0028, -0.34, 0.24);
+        boardGroup.rotation.z = 0;
       }
       input.lastX = e.clientX;
       input.lastY = e.clientY;
