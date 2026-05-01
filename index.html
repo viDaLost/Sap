@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Квантовое Поле 3D</title>
+  <style>
+    :root {
+      --bg0: #050814;
+      --bg1: #10172c;
+      --panel: #121a2f;
+      --panel2: #1a2540;
+      --text: #eef7ff;
+      --muted: #99abc8;
+      --accent: #27e3ff;
+      --accent2: #8e5cff;
+      --gold: #ffc85a;
+      --danger: #ff4f7a;
+      --ok: #6dffb8;
+      --line: rgba(255, 255, 255, .12);
+      --shadow: rgba(0, 0, 0, .45);
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 0%, rgba(39, 227, 255, .18), transparent 34%),
+                  radial-gradient(circle at 15% 80%, rgba(142, 92, 255, .18), transparent 28%),
+                  linear-gradient(180deg, var(--bg1), var(--bg0));
+      color: var(--text);
+      touch-action: none;
+      user-select: none;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,.16) 1px, transparent 1.5px),
+        radial-gradient(circle, rgba(39,227,255,.14) 1px, transparent 1.5px);
+      background-size: 46px 46px, 73px 73px;
+      background-position: 0 0, 18px 11px;
+      opacity: .35;
+      animation: drift 20s linear infinite;
+    }
+
+    @keyframes drift { to { transform: translate3d(-44px, 38px, 0); } }
+
+    button, input, select { font: inherit; color: inherit; }
+    button { border: 0; cursor: pointer; }
+
+    .app {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: calc(10px + var(--safe-top)) 12px calc(10px + var(--safe-bottom));
+    }
+
+    #scene {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      touch-action: none;
+    }
+
+    .hud, .actions {
+      position: relative;
+      z-index: 5;
+      width: min(720px, 100%);
+      margin: 0 auto;
+    }
+
+    .hud {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .stat {
+      min-height: 54px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.025)), var(--panel);
+      box-shadow: 0 12px 30px var(--shadow), inset 0 1px 0 rgba(255,255,255,.14);
+      padding: 8px 7px;
+      text-align: center;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      line-height: 1.05;
+    }
+
+    .stat b {
+      display: block;
+      margin-top: 4px;
+      font-size: clamp(15px, 4vw, 22px);
+      line-height: 1;
+      color: var(--text);
+      text-shadow: 0 0 18px rgba(39,227,255,.45);
+      white-space: nowrap;
+    }
+
+    .stage-hint {
+      align-self: end;
+      justify-self: center;
+      position: relative;
+      z-index: 4;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      pointer-events: none;
+      opacity: .9;
+      text-shadow: 0 1px 8px #000;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .btn {
+      min-height: 52px;
+      padding: 8px 6px;
+      border-radius: 17px;
+      background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04)), linear-gradient(135deg, var(--panel2), var(--panel));
+      border: 1px solid var(--line);
+      box-shadow: 0 10px 20px var(--shadow), inset 0 1px 0 rgba(255,255,255,.16), inset 0 -7px 13px rgba(0,0,0,.24);
+      transition: transform .12s ease, filter .12s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+
+    .btn:active, .btn.active {
+      transform: translateY(2px) scale(.985);
+      border-color: color-mix(in srgb, var(--accent) 70%, white 10%);
+      box-shadow: 0 6px 16px var(--shadow), 0 0 20px rgba(39,227,255,.22), inset 0 1px 0 rgba(255,255,255,.13);
+      filter: brightness(1.13);
+    }
+
+    .btn .ico { display: block; font-size: 20px; line-height: 1; margin-bottom: 3px; }
+    .btn .txt { display: block; font-size: 10px; color: var(--muted); line-height: 1.05; }
+    .btn.primary { color: #06131d; background: linear-gradient(180deg, #fff4b8, var(--gold)); }
+    .btn.primary .txt { color: rgba(0,0,0,.66); }
+    .btn.danger { background: linear-gradient(180deg, rgba(255,116,150,.28), rgba(255,79,122,.12)), var(--panel); }
+
+    .screen {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: calc(18px + var(--safe-top)) 18px calc(18px + var(--safe-bottom));
+      background: radial-gradient(circle at 50% 20%, rgba(39,227,255,.12), transparent 38%), rgba(3, 6, 17, .68);
+    }
+
+    .screen.show { display: flex; }
+
+    .card {
+      width: min(520px, 100%);
+      max-height: calc(100vh - 34px - var(--safe-top) - var(--safe-bottom));
+      overflow: auto;
+      padding: 22px;
+      border-radius: 28px;
+      background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.025)), rgba(13, 19, 36, .96);
+      border: 1px solid var(--line);
+      box-shadow: 0 25px 90px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.14);
+    }
+
+    .title {
+      margin: 0;
+      font-size: clamp(32px, 10vw, 58px);
+      line-height: .96;
+      letter-spacing: -.04em;
+      text-align: center;
+      color: #fff;
+      text-shadow: 0 0 24px rgba(39,227,255,.45), 0 8px 34px rgba(0,0,0,.5);
+    }
+
+    .subtitle {
+      margin: 12px auto 18px;
+      max-width: 420px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .menu-grid, .settings-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .big-btn {
+      min-height: 56px;
+      border-radius: 18px;
+      padding: 12px 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.17), rgba(255,255,255,.04)), var(--panel2);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.16), inset 0 -8px 18px rgba(0,0,0,.22);
+      text-align: left;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .big-btn:active { transform: translateY(2px); }
+    .big-btn strong { font-size: 16px; }
+    .big-btn small { color: var(--muted); display: block; margin-top: 2px; }
+    .big-btn.selected { border-color: var(--accent); box-shadow: 0 0 26px rgba(39,227,255,.22), inset 0 1px 0 rgba(255,255,255,.16); }
+    .big-btn.play { background: linear-gradient(180deg, #fff0a0, var(--gold)); color: #0b1220; }
+    .big-btn.play small { color: rgba(0,0,0,.65); }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .field-row {
+      display: grid;
+      gap: 7px;
+      padding: 12px;
+      border-radius: 17px;
+      background: rgba(255,255,255,.045);
+      border: 1px solid var(--line);
+    }
+
+    .field-row label { font-size: 12px; color: var(--muted); }
+    .field-row input, .field-row select {
+      width: 100%;
+      height: 44px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      padding: 0 12px;
+      background: #0c1222;
+      outline: none;
+    }
+
+    .toggle-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 48px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.045);
+      border: 1px solid var(--line);
+    }
+
+    .toggle-line button {
+      min-width: 76px;
+      height: 34px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04)), var(--panel2);
+      border: 1px solid var(--line);
+    }
+
+    .toggle-line button.on { background: linear-gradient(180deg, var(--accent), var(--accent2)); color: #07121d; font-weight: 800; }
+
+    .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+    .modal-actions.three { grid-template-columns: 1fr; }
+
+    .result-title {
+      margin: 0 0 8px;
+      font-size: 34px;
+      text-align: center;
+    }
+
+    .result-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .result-stats div {
+      padding: 12px;
+      border-radius: 15px;
+      background: rgba(255,255,255,.045);
+      border: 1px solid var(--line);
+    }
+
+    .result-stats span { display: block; color: var(--muted); font-size: 11px; }
+    .result-stats b { display: block; margin-top: 3px; font-size: 18px; }
+
+    .float-btn {
+      position: fixed;
+      z-index: 6;
+      bottom: calc(76px + var(--safe-bottom));
+      width: 76px;
+      min-height: 42px;
+      border-radius: 15px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.15), rgba(255,255,255,.04)), var(--panel2);
+      box-shadow: 0 10px 22px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.14);
+      pointer-events: auto;
+      font-size: 11px;
+      color: var(--text);
+    }
+
+    .float-btn:active { transform: translateY(2px) scale(.98); }
+    .float-btn.left { left: 12px; }
+    .float-btn.right { right: 12px; }
+    .float-btn b { display: block; font-size: 17px; line-height: 1; }
+    .float-btn span { display: block; margin-top: 2px; color: var(--muted); }
+
+    .toast {
+      position: fixed;
+      z-index: 30;
+      left: 50%;
+      bottom: calc(86px + var(--safe-bottom));
+      transform: translateX(-50%) translateY(20px);
+      opacity: 0;
+      max-width: min(92vw, 420px);
+      padding: 12px 16px;
+      border-radius: 16px;
+      background: rgba(12, 18, 34, .94);
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 44px rgba(0,0,0,.45);
+      color: var(--text);
+      transition: opacity .2s ease, transform .2s ease;
+      pointer-events: none;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .hidden { display: none !important; }
+
+    @media (max-width: 390px) {
+      .app { padding-left: 8px; padding-right: 8px; }
+      .hud { gap: 6px; }
+      .actions { gap: 6px; }
+      .stat { min-height: 49px; padding: 7px 5px; border-radius: 14px; }
+      .stat span { font-size: 9px; }
+      .btn { min-height: 48px; border-radius: 15px; }
+      .btn .ico { font-size: 18px; }
+      .btn .txt { font-size: 9px; }
+      .card { padding: 16px; border-radius: 23px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <main class="app" id="app">
+    <section class="hud" id="hud">
+      <div class="stat"><span>Время</span><b id="timeText">00:00</b></div>
+      <div class="stat"><span>Мины</span><b id="mineText">0</b></div>
+      <div class="stat"><span>Флаги</span><b id="flagText">0</b></div>
+      <div class="stat"><span>Рекорд</span><b id="bestText">—</b></div>
+    </section>
+
+    <div class="stage-hint" id="stageHint">Поверни поле пальцем. Долгое нажатие ставит флаг.</div>
+    <button class="float-btn left" id="pauseBtn"><b>Ⅱ</b><span>Пауза</span></button>
+    <button class="float-btn right" id="cameraResetBtn"><b>⤢</b><span>Камера</span></button>
+
+    <section class="actions" id="actions">
+      <button class="btn active" id="openModeBtn"><span class="ico">⬡</span><span class="txt">Открыть</span></button>
+      <button class="btn" id="flagModeBtn"><span class="ico">⚑</span><span class="txt">Флаг</span></button>
+      <button class="btn" id="newBtn"><span class="ico">↻</span><span class="txt">Новая</span></button>
+      <button class="btn" id="hintBtn"><span class="ico">?</span><span class="txt">Подсказка</span></button>
+      <button class="btn" id="settingsBtn"><span class="ico">⚙</span><span class="txt">Настройки</span></button>
+    </section>
+  </main>
+
+  <section class="screen show" id="menuScreen">
+    <div class="card">
+      <h1 class="title">Квантовое<br>Поле</h1>
+      <p class="subtitle">Открой безопасные кубы, отметь опасные ядра и очисти 3D-платформу без взрыва.</p>
+      <div class="menu-grid" id="difficultyList"></div>
+      <div id="customBox" class="row hidden" style="margin-top:10px">
+        <div class="field-row"><label>Размер</label><input id="customSize" type="number" min="5" max="12" value="8"></div>
+        <div class="field-row"><label>Мины</label><input id="customMines" type="number" min="1" max="35" value="10"></div>
+      </div>
+      <div class="menu-grid" style="margin-top:12px">
+        <button class="big-btn play" id="playBtn"><span><strong>Играть</strong><small>Первый ход всегда безопасен</small></span><span>▶</span></button>
+        <button class="big-btn" id="howBtn"><span><strong>Как играть</strong><small>Короткая инструкция</small></span><span>›</span></button>
+        <button class="big-btn" id="menuSettingsBtn"><span><strong>Настройки</strong><small>Тема, звук, качество</small></span><span>⚙</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="howScreen">
+    <div class="card">
+      <h2 class="result-title">Как играть</h2>
+      <div class="subtitle" style="text-align:left; max-width:none">
+        Открывай кубы коротким нажатием. Число на кубе показывает, сколько мин рядом в 8 соседних клетках. Долгое нажатие ставит флаг. Первый ход и клетки рядом с ним всегда безопасны. Победа наступает, когда открыты все безопасные кубы.
+      </div>
+      <div class="modal-actions"><button class="big-btn" id="howBackBtn"><strong>Назад</strong></button><button class="big-btn play" id="howPlayBtn"><strong>Играть</strong></button></div>
+    </div>
+  </section>
+
+  <section class="screen" id="settingsScreen">
+    <div class="card">
+      <h2 class="result-title">Настройки</h2>
+      <div class="settings-grid">
+        <div class="field-row"><label>Качество графики</label><select id="qualitySelect"><option value="low">Низкое</option><option value="medium">Среднее</option><option value="high">Высокое</option></select></div>
+        <div class="field-row"><label>Тема</label><select id="themeSelect"><option value="neon">Неон</option><option value="metal">Темный металл</option><option value="crystal">Кристалл</option><option value="desert">Пустынная база</option></select></div>
+        <div class="toggle-line"><span>Звук</span><button id="soundToggle">Вкл</button></div>
+        <div class="toggle-line"><span>Вибрация</span><button id="vibrationToggle">Вкл</button></div>
+        <div class="toggle-line"><span>Частицы</span><button id="particlesToggle">Вкл</button></div>
+        <div class="toggle-line"><span>Анимация камеры</span><button id="cameraToggle">Вкл</button></div>
+      </div>
+      <div class="modal-actions"><button class="big-btn" id="settingsBackBtn"><strong>Назад</strong></button><button class="big-btn play" id="settingsDoneBtn"><strong>Готово</strong></button></div>
+    </div>
+  </section>
+
+  <section class="screen" id="pauseScreen">
+    <div class="card">
+      <h2 class="result-title">Пауза</h2>
+      <p class="subtitle">Игра остановлена. Таймер продолжит идти после возврата.</p>
+      <div class="modal-actions three"><button class="big-btn play" id="resumeBtn"><strong>Продолжить</strong></button><button class="big-btn" id="pauseSettingsBtn"><strong>Настройки</strong></button><button class="big-btn" id="pauseMenuBtn"><strong>В меню</strong></button></div>
+    </div>
+  </section>
+
+  <section class="screen" id="resultScreen">
+    <div class="card">
+      <h2 class="result-title" id="resultTitle">Победа</h2>
+      <p class="subtitle" id="resultText">Поле очищено.</p>
+      <div class="result-stats" id="resultStats"></div>
+      <div class="modal-actions three" id="resultActions"></div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    const canvas = document.getElementById('scene');
+    const ui = {
+      menu: document.getElementById('menuScreen'),
+      how: document.getElementById('howScreen'),
+      settings: document.getElementById('settingsScreen'),
+      pause: document.getElementById('pauseScreen'),
+      result: document.getElementById('resultScreen'),
+      difficultyList: document.getElementById('difficultyList'),
+      customBox: document.getElementById('customBox'),
+      customSize: document.getElementById('customSize'),
+      customMines: document.getElementById('customMines'),
+      time: document.getElementById('timeText'),
+      mines: document.getElementById('mineText'),
+      flags: document.getElementById('flagText'),
+      best: document.getElementById('bestText'),
+      hint: document.getElementById('stageHint'),
+      openMode: document.getElementById('openModeBtn'),
+      flagMode: document.getElementById('flagModeBtn'),
+      toast: document.getElementById('toast'),
+      resultTitle: document.getElementById('resultTitle'),
+      resultText: document.getElementById('resultText'),
+      resultStats: document.getElementById('resultStats'),
+      resultActions: document.getElementById('resultActions'),
+      quality: document.getElementById('qualitySelect'),
+      theme: document.getElementById('themeSelect'),
+      soundToggle: document.getElementById('soundToggle'),
+      vibrationToggle: document.getElementById('vibrationToggle'),
+      particlesToggle: document.getElementById('particlesToggle'),
+      cameraToggle: document.getElementById('cameraToggle')
+    };
+
+    const difficulties = {
+      beginner: { name: 'Новичок', size: 6, mines: 6, note: '6 × 6, 6 мин' },
+      medium: { name: 'Средний', size: 8, mines: 12, note: '8 × 8, 12 мин' },
+      hard: { name: 'Сложный', size: 10, mines: 20, note: '10 × 10, 20 мин' },
+      expert: { name: 'Эксперт', size: 12, mines: 32, note: '12 × 12, 32 мины' },
+      custom: { name: 'Пользовательский', size: 8, mines: 10, note: 'свой размер и мины' }
+    };
+
+    const themes = {
+      neon: {
+        name: 'Неон', bg0: '#050814', bg1: '#10172c', panel: '#121a2f', panel2: '#1a2540',
+        accent: '#27e3ff', accent2: '#8e5cff', gold: '#ffc85a', danger: '#ff4f7a', ok: '#6dffb8',
+        tile: '#27334f', tileTop: '#3f4d72', open: '#cfe9ff', base: '#11182c', frame: '#1b2a4a', mine: '#ff386f', flag: '#ffd15a'
+      },
+      metal: {
+        name: 'Темный металл', bg0: '#06070b', bg1: '#171b23', panel: '#131820', panel2: '#202733',
+        accent: '#8aa3ff', accent2: '#4fc4ff', gold: '#d9a94f', danger: '#ff526d', ok: '#8af0c2',
+        tile: '#2a303a', tileTop: '#444d5c', open: '#d8dde7', base: '#11151d', frame: '#333b49', mine: '#ff315a', flag: '#f5c15b'
+      },
+      crystal: {
+        name: 'Кристалл', bg0: '#060b18', bg1: '#13213d', panel: '#13243c', panel2: '#20375b',
+        accent: '#80fff3', accent2: '#a77cff', gold: '#ffe083', danger: '#ff5d97', ok: '#a1ffd8',
+        tile: '#23425b', tileTop: '#3d7090', open: '#e8fbff', base: '#0d2234', frame: '#24506f', mine: '#ff4f97', flag: '#ffe083'
+      },
+      desert: {
+        name: 'Пустынная база', bg0: '#120d08', bg1: '#302214', panel: '#21190f', panel2: '#3b2b18',
+        accent: '#ffb15a', accent2: '#4bc7ff', gold: '#ffd06d', danger: '#ff5c3d', ok: '#a6e08a',
+        tile: '#5b4328', tileTop: '#8a6840', open: '#ffe4ba', base: '#24170d', frame: '#6f4d28', mine: '#ff5a35', flag: '#5fe0ff'
+      }
+    };
+
+    const settings = loadSettings();
+    let selectedDifficulty = 'beginner';
+    let mode = 'open';
+    let activeScreen = 'menu';
+    let toastTimer = 0;
+
+    const state = {
+      size: 6,
+      mines: 6,
+      key: 'beginner',
+      board: [],
+      firstMove: true,
+      timerStarted: false,
+      startTime: 0,
+      elapsed: 0,
+      moves: 0,
+      flags: 0,
+      revealed: 0,
+      status: 'menu',
+      actionLock: false,
+      pausedAt: 0
+    };
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x050814, 18, 52);
+
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 140);
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const root = new THREE.Group();
+    const boardGroup = new THREE.Group();
+    const effectGroup = new THREE.Group();
+    const menuGroup = new THREE.Group();
+    scene.add(root, effectGroup, menuGroup);
+    root.add(boardGroup);
+
+    const lightRig = new THREE.Group();
+    scene.add(lightRig);
+    const ambient = new THREE.AmbientLight(0x7aa7ff, .72);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.55);
+    keyLight.position.set(5, 10, 7);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(1024, 1024);
+    keyLight.shadow.camera.near = 1;
+    keyLight.shadow.camera.far = 36;
+    keyLight.shadow.camera.left = -15;
+    keyLight.shadow.camera.right = 15;
+    keyLight.shadow.camera.top = 15;
+    keyLight.shadow.camera.bottom = -15;
+    const rimLight = new THREE.PointLight(0x27e3ff, 1.8, 22);
+    rimLight.position.set(-6, 4, 5);
+    lightRig.add(ambient, keyLight, rimLight);
+
+    const matCache = new Map();
+    const textureCache = new Map();
+    const cellMeshes = [];
+    const animations = [];
+    let particleSystem = null;
+    let menuParticles = null;
+    let baseMesh = null;
+    let frameMeshes = [];
+    let lastTime = performance.now();
+    let cameraShake = 0;
+    let autoCameraTime = 0;
+
+    const geom = {
+      cell: makeRoundedBox(0.92, 0.92, 0.34, 0.07, 3),
+      base: new THREE.BoxGeometry(1, 0.36, 1),
+      plane: new THREE.PlaneGeometry(.56, .56),
+      pole: new THREE.CylinderGeometry(.018, .018, .62, 8),
+      flag: new THREE.ShapeGeometry(makeFlagShape()),
+      sphere: new THREE.SphereGeometry(.23, 18, 14),
+      spike: new THREE.ConeGeometry(.055, .22, 8),
+      ring: new THREE.TorusGeometry(.28, .018, 8, 42)
+    };
+
+    function makeRoundedBox(w, d, h, r, s) {
+      const shape = new THREE.Shape();
+      const x = -w / 2, y = -d / 2;
+      shape.moveTo(x + r, y);
+      shape.lineTo(x + w - r, y);
+      shape.quadraticCurveTo(x + w, y, x + w, y + r);
+      shape.lineTo(x + w, y + d - r);
+      shape.quadraticCurveTo(x + w, y + d, x + w - r, y + d);
+      shape.lineTo(x + r, y + d);
+      shape.quadraticCurveTo(x, y + d, x, y + d - r);
+      shape.lineTo(x, y + r);
+      shape.quadraticCurveTo(x, y, x + r, y);
+      const g = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: true, bevelSize: r * .45, bevelThickness: r * .45, bevelSegments: s });
+      g.rotateX(-Math.PI / 2);
+      g.translate(0, h / 2, 0);
+      g.computeVertexNormals();
+      return g;
+    }
+
+    function makeFlagShape() {
+      const shape = new THREE.Shape();
+      shape.moveTo(0, 0);
+      shape.lineTo(.34, .08);
+      shape.lineTo(.05, .24);
+      shape.lineTo(0, .28);
+      shape.closePath();
+      return shape;
+    }
+
+    function getMat(name, options) {
+      const key = name + JSON.stringify(options);
+      if (matCache.has(key)) return matCache.get(key);
+      const mat = new THREE.MeshStandardMaterial(options);
+      matCache.set(key, mat);
+      return mat;
+    }
+
+    function theme() { return themes[settings.theme] || themes.neon; }
+
+    function applyCssTheme() {
+      const t = theme();
+      const r = document.documentElement.style;
+      r.setProperty('--bg0', t.bg0);
+      r.setProperty('--bg1', t.bg1);
+      r.setProperty('--panel', t.panel);
+      r.setProperty('--panel2', t.panel2);
+      r.setProperty('--accent', t.accent);
+      r.setProperty('--accent2', t.accent2);
+      r.setProperty('--gold', t.gold);
+      r.setProperty('--danger', t.danger);
+      r.setProperty('--ok', t.ok);
+      scene.fog.color.set(t.bg0);
+      ambient.color.set(t.accent2);
+      rimLight.color.set(t.accent);
+    }
+
+    function applyQuality() {
+      const ratio = settings.quality === 'high' ? 2 : settings.quality === 'medium' ? 1.5 : 1;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, ratio));
+      renderer.shadowMap.enabled = settings.quality !== 'low';
+      keyLight.castShadow = settings.quality !== 'low';
+      if (particleSystem) particleSystem.visible = settings.particles;
+      if (menuParticles) menuParticles.visible = settings.particles;
+    }
+
+    function buildDifficultyMenu() {
+      ui.difficultyList.innerHTML = '';
+      for (const [key, item] of Object.entries(difficulties)) {
+        const btn = document.createElement('button');
+        btn.className = 'big-btn' + (key === selectedDifficulty ? ' selected' : '');
+        btn.innerHTML = `<span><strong>${item.name}</strong><small>${item.note}</small></span><span>${key === 'custom' ? '✎' : '◆'}</span>`;
+        btn.addEventListener('click', () => {
+          selectedDifficulty = key;
+          ui.customBox.classList.toggle('hidden', key !== 'custom');
+          buildDifficultyMenu();
+          playSound('button');
+        });
+        ui.difficultyList.appendChild(btn);
+      }
+      ui.customBox.classList.toggle('hidden', selectedDifficulty !== 'custom');
+    }
+
+    function loadSettings() {
+      const base = { quality: 'medium', sound: true, vibration: true, particles: true, cameraMotion: true, theme: 'neon' };
+      try { return { ...base, ...JSON.parse(localStorage.getItem('quantumFieldSettings') || '{}') }; }
+      catch { return base; }
+    }
+
+    function saveSettings() {
+      localStorage.setItem('quantumFieldSettings', JSON.stringify(settings));
+    }
+
+    function loadBest(key) {
+      const value = Number(localStorage.getItem('quantumFieldBest_' + key));
+      return Number.isFinite(value) && value > 0 ? value : 0;
+    }
+
+    function saveBest(key, seconds) {
+      const old = loadBest(key);
+      if (!old || seconds < old) localStorage.setItem('quantumFieldBest_' + key, String(seconds));
+    }
+
+    function formatTime(sec) {
+      sec = Math.max(0, Math.floor(sec));
+      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+      const s = String(sec % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function showScreen(name) {
+      activeScreen = name;
+      for (const screen of [ui.menu, ui.how, ui.settings, ui.pause, ui.result]) screen.classList.remove('show');
+      if (name === 'menu') ui.menu.classList.add('show');
+      if (name === 'how') ui.how.classList.add('show');
+      if (name === 'settings') ui.settings.classList.add('show');
+      if (name === 'pause') ui.pause.classList.add('show');
+      if (name === 'result') ui.result.classList.add('show');
+      menuGroup.visible = name === 'menu' || name === 'how' || name === 'settings';
+      root.visible = name !== 'menu' || state.status === 'playing' || state.status === 'ready';
+    }
+
+    function toast(text) {
+      ui.toast.textContent = text;
+      ui.toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => ui.toast.classList.remove('show'), 1900);
+    }
+
+    function startFromMenu() {
+      const cfg = getSelectedConfig();
+      startNewGame(cfg.key, cfg.size, cfg.mines);
+      showScreen('none');
+    }
+
+    function getSelectedConfig() {
+      if (selectedDifficulty !== 'custom') {
+        const cfg = difficulties[selectedDifficulty];
+        return { key: selectedDifficulty, size: cfg.size, mines: cfg.mines };
+      }
+      let size = Math.round(Number(ui.customSize.value) || 8);
+      size = clamp(size, 5, 12);
+      const maxMines = Math.max(1, size * size - 9);
+      let mines = Math.round(Number(ui.customMines.value) || Math.floor(size * size * .18));
+      mines = clamp(mines, 1, maxMines);
+      ui.customSize.value = size;
+      ui.customMines.value = mines;
+      return { key: `custom_${size}_${mines}`, size, mines };
+    }
+
+    function startNewGame(key = state.key, size = state.size, mines = state.mines) {
+      state.key = key;
+      state.size = size;
+      state.mines = mines;
+      state.board = [];
+      state.firstMove = true;
+      state.timerStarted = false;
+      state.startTime = 0;
+      state.elapsed = 0;
+      state.moves = 0;
+      state.flags = 0;
+      state.revealed = 0;
+      state.status = 'ready';
+      state.actionLock = false;
+      mode = 'open';
+      updateModeButtons();
+      buildLogicalBoard(size);
+      build3DBoard(size);
+      resetCamera(true);
+      updateHud();
+      showScreen('none');
+      toast('Поле собрано. Первый ход безопасен.');
+      playSound('button');
+    }
+
+    function buildLogicalBoard(size) {
+      state.board = Array.from({ length: size }, (_, y) =>
+        Array.from({ length: size }, (_, x) => ({ x, y, mine: false, adjacent: 0, revealed: false, flagged: false, mesh: null, group: null, flagObj: null, mineObj: null, numberObj: null, wrongFlag: null }))
+      );
+    }
+
+    function placeMines(firstCell) {
+      const blocked = new Set();
+      forEachNeighbor(firstCell.x, firstCell.y, true, (cell) => blocked.add(cellKey(cell.x, cell.y)));
+      const available = [];
+      for (const row of state.board) for (const cell of row) if (!blocked.has(cellKey(cell.x, cell.y))) available.push(cell);
+      shuffle(available);
+      for (let i = 0; i < state.mines && i < available.length; i++) available[i].mine = true;
+      for (const row of state.board) {
+        for (const cell of row) {
+          cell.adjacent = 0;
+          forEachNeighbor(cell.x, cell.y, false, (near) => { if (near.mine) cell.adjacent++; });
+        }
+      }
+    }
+
+    function cellKey(x, y) { return `${x}:${y}`; }
+    function inBoard(x, y) { return x >= 0 && y >= 0 && x < state.size && y < state.size; }
+    function getCell(x, y) { return inBoard(x, y) ? state.board[y][x] : null; }
+
+    function forEachNeighbor(x, y, includeSelf, fn) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!includeSelf && dx === 0 && dy === 0) continue;
+          const cell = getCell(x + dx, y + dy);
+          if (cell) fn(cell);
+        }
+      }
+    }
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+
+    function build3DBoard(size) {
+      clearGroup(boardGroup);
+      cellMeshes.length = 0;
+      frameMeshes = [];
+      matCache.clear();
+      textureCache.clear();
+      const t = theme();
+      const gap = .09;
+      const pitch = 1 + gap;
+      const total = size * pitch - gap;
+      boardGroup.position.set(-total / 2 + .5, 0, -total / 2 + .5);
+      boardGroup.rotation.set(-0.48, 0, 0.18);
+
+      const baseMat = getMat('base', { color: t.base, roughness: .48, metalness: .55, emissive: t.accent, emissiveIntensity: .04 });
+      baseMesh = new THREE.Mesh(geom.base, baseMat);
+      baseMesh.scale.set(total + .9, 1, total + .9);
+      baseMesh.position.set(total / 2 - .5, -.26, total / 2 - .5);
+      baseMesh.receiveShadow = true;
+      baseMesh.castShadow = true;
+      boardGroup.add(baseMesh);
+
+      const frameMat = getMat('frame', { color: t.frame, roughness: .34, metalness: .68, emissive: t.accent, emissiveIntensity: .08 });
+      const frameGeo = new THREE.BoxGeometry(1, .42, .18);
+      const edges = [
+        { x: total / 2 - .5, z: -.62, sx: total + .95, sz: 1 },
+        { x: total / 2 - .5, z: total - .38, sx: total + .95, sz: 1 },
+        { x: -.62, z: total / 2 - .5, sx: 1, sz: total + .95 },
+        { x: total - .38, z: total / 2 - .5, sx: 1, sz: total + .95 }
+      ];
+      for (const e of edges) {
+        const mesh = new THREE.Mesh(frameGeo, frameMat);
+        mesh.position.set(e.x, -.03, e.z);
+        mesh.scale.set(e.sx, 1, e.sz);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        boardGroup.add(mesh);
+        frameMeshes.push(mesh);
+      }
+
+      const cellMat = getMat('closed', { color: t.tile, roughness: .28, metalness: .62, emissive: t.accent, emissiveIntensity: .045 });
+      for (const row of state.board) {
+        for (const cell of row) {
+          const group = new THREE.Group();
+          group.position.set(cell.x * pitch, 0, cell.y * pitch);
+          const mesh = new THREE.Mesh(geom.cell, cellMat.clone());
+          mesh.material.color.set(t.tile);
+          mesh.material.emissive.set(t.accent);
+          mesh.material.emissiveIntensity = .04;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          mesh.userData.cell = cell;
+          group.add(mesh);
+          const topGlow = new THREE.Mesh(new THREE.PlaneGeometry(.68, .68), new THREE.MeshBasicMaterial({ color: t.tileTop, transparent: true, opacity: .12, depthWrite: false }));
+          topGlow.rotation.x = -Math.PI / 2;
+          topGlow.position.y = .38;
+          group.add(topGlow);
+          cell.mesh = mesh;
+          cell.group = group;
+          boardGroup.add(group);
+          cellMeshes.push(mesh);
+          animate(group.scale, { x: 1, y: 1, z: 1 }, 480, easeOutBack, cell.x * 28 + cell.y * 22, { x: .01, y: .01, z: .01 });
+          group.scale.set(.01, .01, .01);
+        }
+      }
+      restoreVisualState();
+      makeParticles(size);
+      updateHud();
+    }
+
+    function restoreVisualState() {
+      const t = theme();
+      for (const row of state.board) {
+        for (const cell of row) {
+          if (!cell.group || !cell.mesh) continue;
+          if (cell.revealed) {
+            cell.group.position.y = -.16;
+            cell.mesh.material.color.set(t.open);
+            cell.mesh.material.metalness = .1;
+            cell.mesh.material.roughness = .42;
+            cell.mesh.material.emissive.set(t.accent);
+            cell.mesh.material.emissiveIntensity = .018;
+            if (cell.adjacent > 0 && !cell.numberObj) addNumber(cell);
+          }
+          if (cell.flagged && !cell.flagObj) {
+            cell.flagObj = makeFlagObject();
+            cell.group.add(cell.flagObj);
+          }
+          if ((state.status === 'lost' || state.status === 'won') && cell.mine) addMineToCell(cell, 0);
+          if (state.status === 'lost' && cell.flagged && !cell.mine) addWrongFlag(cell);
+        }
+      }
+    }
+
+    function clearGroup(group) {
+      while (group.children.length) {
+        const obj = group.children.pop();
+        disposeObject(obj);
+      }
+    }
+
+    function disposeObject(obj) {
+      obj.traverse?.((child) => {
+        if (child.geometry && !Object.values(geom).includes(child.geometry)) child.geometry.dispose();
+        if (child.material) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          for (const mat of mats) {
+            if (mat.map) mat.map.dispose();
+            mat.dispose?.();
+          }
+        }
+      });
+    }
+
+    function makeParticles(size) {
+      if (particleSystem) effectGroup.remove(particleSystem);
+      if (!settings.particles) return;
+      const count = settings.quality === 'high' ? 240 : settings.quality === 'medium' ? 130 : 50;
+      const positions = new Float32Array(count * 3);
+      const spread = Math.max(8, size * 1.25);
+      for (let i = 0; i < count; i++) {
+        positions[i * 3] = (Math.random() - .5) * spread;
+        positions[i * 3 + 1] = Math.random() * 5 - .7;
+        positions[i * 3 + 2] = (Math.random() - .5) * spread;
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const material = new THREE.PointsMaterial({ size: .035, color: theme().accent, transparent: true, opacity: .5, depthWrite: false });
+      particleSystem = new THREE.Points(geometry, material);
+      particleSystem.visible = settings.particles;
+      effectGroup.add(particleSystem);
+    }
+
+    function makeMenuScene() {
+      clearGroup(menuGroup);
+      const t = theme();
+      menuGroup.visible = true;
+      const plate = new THREE.Group();
+      const mat = getMat('menuTile', { color: t.tile, roughness: .25, metalness: .7, emissive: t.accent, emissiveIntensity: .08 });
+      for (let y = 0; y < 4; y++) {
+        for (let x = 0; x < 4; x++) {
+          const m = new THREE.Mesh(geom.cell, mat.clone());
+          m.position.set((x - 1.5) * 1.07, Math.sin((x + y) * .8) * .04, (y - 1.5) * 1.07);
+          m.rotation.y = (x - y) * .04;
+          m.castShadow = true;
+          m.receiveShadow = true;
+          plate.add(m);
+        }
+      }
+      plate.rotation.set(-.55, 0, .35);
+      plate.position.set(0, -1.2, -1.8);
+      menuGroup.add(plate);
+
+      const core = makeMineObject();
+      core.position.set(1.2, -.55, -2.1);
+      core.scale.setScalar(1.15);
+      menuGroup.add(core);
+
+      if (menuParticles) menuGroup.remove(menuParticles);
+      const g = new THREE.BufferGeometry();
+      const count = 160;
+      const pos = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        pos[i * 3] = (Math.random() - .5) * 8;
+        pos[i * 3 + 1] = (Math.random() - .5) * 6;
+        pos[i * 3 + 2] = -3 - Math.random() * 5;
+      }
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      menuParticles = new THREE.Points(g, new THREE.PointsMaterial({ size: .026, color: t.accent, transparent: true, opacity: .5, depthWrite: false }));
+      menuParticles.visible = settings.particles;
+      menuGroup.add(menuParticles);
+    }
+
+    function makeNumberTexture(n) {
+      const t = theme();
+      const key = `${settings.theme}_${n}`;
+      if (textureCache.has(key)) return textureCache.get(key);
+      const c = document.createElement('canvas');
+      c.width = 192;
+      c.height = 192;
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.font = '900 112px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const colors = ['#ffffff', '#3ddfff', '#73ffad', '#ffe06e', '#ff9e5e', '#ff5d8f', '#b58cff', '#f1f4ff', '#ffffff'];
+      ctx.shadowColor = 'rgba(0,0,0,.65)';
+      ctx.shadowBlur = 10;
+      ctx.lineWidth = 12;
+      ctx.strokeStyle = 'rgba(3,7,16,.82)';
+      ctx.strokeText(String(n), 96, 98);
+      ctx.shadowColor = t.accent;
+      ctx.shadowBlur = 15;
+      ctx.fillStyle = colors[n] || '#fff';
+      ctx.fillText(String(n), 96, 98);
+      const tex = new THREE.CanvasTexture(c);
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      textureCache.set(key, tex);
+      return tex;
+    }
+
+    function revealCell(cell, delay = 0, wave = false) {
+      if (cell.revealed) return;
+      cell.revealed = true;
+      state.revealed++;
+      const t = theme();
+      const mesh = cell.mesh;
+      animate(cell.group.position, { y: -.16 }, 260, easeOutCubic, delay);
+      animate(mesh.rotation, { x: wave ? -.08 : 0, y: wave ? .08 : 0, z: 0 }, 180, easeOutCubic, delay);
+      setTimeout(() => {
+        if (!mesh.material) return;
+        mesh.material.color.set(t.open);
+        mesh.material.metalness = .1;
+        mesh.material.roughness = .42;
+        mesh.material.emissive.set(t.accent);
+        mesh.material.emissiveIntensity = .018;
+        if (cell.adjacent > 0 && !cell.numberObj) addNumber(cell);
+      }, delay);
+    }
+
+    function addNumber(cell) {
+      const mat = new THREE.MeshBasicMaterial({ map: makeNumberTexture(cell.adjacent), transparent: true, depthWrite: false });
+      const p = new THREE.Mesh(geom.plane, mat);
+      p.rotation.x = -Math.PI / 2;
+      p.position.y = .405;
+      p.renderOrder = 5;
+      cell.group.add(p);
+      cell.numberObj = p;
+      p.scale.set(.08, .08, .08);
+      animate(p.scale, { x: 1, y: 1, z: 1 }, 240, easeOutBack, 0);
+    }
+
+    function toggleFlag(cell, countMove = true) {
+      if (state.status !== 'ready' && state.status !== 'playing') return;
+      if (cell.revealed || state.actionLock) return;
+      if (!cell.flagged && state.flags >= state.mines) {
+        toast('Флагов больше нет.');
+        return;
+      }
+      cell.flagged = !cell.flagged;
+      state.flags += cell.flagged ? 1 : -1;
+      if (countMove) state.moves++;
+      if (cell.flagged) {
+        cell.flagObj = makeFlagObject();
+        cell.group.add(cell.flagObj);
+        cell.flagObj.scale.set(.01, .01, .01);
+        animate(cell.flagObj.scale, { x: 1, y: 1, z: 1 }, 300, easeOutBack, 0);
+        playSound('flag');
+        vibrate(18);
+      } else if (cell.flagObj) {
+        const old = cell.flagObj;
+        animate(old.scale, { x: .01, y: .01, z: .01 }, 170, easeInCubic, 0, null, () => cell.group.remove(old));
+        cell.flagObj = null;
+        playSound('unflag');
+      }
+      updateHud();
+    }
+
+    function makeFlagObject() {
+      const t = theme();
+      const group = new THREE.Group();
+      const pole = new THREE.Mesh(geom.pole, getMat('pole', { color: 0xe7f8ff, roughness: .22, metalness: .75 }));
+      pole.position.set(-.12, .72, -.05);
+      pole.castShadow = true;
+      const flag = new THREE.Mesh(geom.flag, new THREE.MeshStandardMaterial({ color: t.flag, roughness: .28, metalness: .28, emissive: t.flag, emissiveIntensity: .08, side: THREE.DoubleSide }));
+      flag.position.set(-.11, .84, -.05);
+      flag.rotation.y = -Math.PI / 2;
+      flag.scale.set(1.1, 1.1, 1.1);
+      const foot = new THREE.Mesh(new THREE.CylinderGeometry(.1, .14, .05, 16), getMat('flagFoot', { color: t.gold, roughness: .25, metalness: .7 }));
+      foot.position.set(-.12, .43, -.05);
+      foot.castShadow = true;
+      group.add(pole, flag, foot);
+      return group;
+    }
+
+    function makeMineObject() {
+      const t = theme();
+      const group = new THREE.Group();
+      const core = new THREE.Mesh(geom.sphere, new THREE.MeshStandardMaterial({ color: t.mine, roughness: .18, metalness: .25, emissive: t.mine, emissiveIntensity: .65 }));
+      core.castShadow = true;
+      group.add(core);
+      const ringMat = new THREE.MeshBasicMaterial({ color: t.accent, transparent: true, opacity: .75 });
+      const ringA = new THREE.Mesh(geom.ring, ringMat);
+      const ringB = new THREE.Mesh(geom.ring, ringMat.clone());
+      ringB.rotation.x = Math.PI / 2;
+      group.add(ringA, ringB);
+      const spikeMat = new THREE.MeshStandardMaterial({ color: t.mine, roughness: .3, metalness: .5, emissive: t.mine, emissiveIntensity: .25 });
+      for (let i = 0; i < 8; i++) {
+        const spike = new THREE.Mesh(geom.spike, spikeMat);
+        const a = i / 8 * Math.PI * 2;
+        spike.position.set(Math.cos(a) * .31, 0, Math.sin(a) * .31);
+        spike.rotation.z = Math.PI / 2;
+        spike.rotation.y = -a;
+        group.add(spike);
+      }
+      return group;
+    }
+
+    function addMineToCell(cell, delay = 0) {
+      if (cell.mineObj) return;
+      const obj = makeMineObject();
+      obj.position.y = .48;
+      obj.scale.set(.01, .01, .01);
+      cell.group.add(obj);
+      cell.mineObj = obj;
+      animate(obj.scale, { x: 1, y: 1, z: 1 }, 280, easeOutBack, delay);
+    }
+
+    function addWrongFlag(cell) {
+      if (cell.wrongFlag) return;
+      const mat = new THREE.MeshBasicMaterial({ color: theme().danger, transparent: true, opacity: .95, side: THREE.DoubleSide });
+      const g = new THREE.Group();
+      const a = new THREE.Mesh(new THREE.BoxGeometry(.68, .06, .04), mat);
+      const b = new THREE.Mesh(new THREE.BoxGeometry(.68, .06, .04), mat.clone());
+      a.rotation.y = Math.PI / 4;
+      b.rotation.y = -Math.PI / 4;
+      a.position.y = .54;
+      b.position.y = .55;
+      g.add(a, b);
+      cell.group.add(g);
+      cell.wrongFlag = g;
+    }
+
+    function openCell(cell) {
+      if (state.actionLock || state.status === 'paused' || state.status === 'won' || state.status === 'lost') return;
+      if (!cell || cell.revealed || cell.flagged) return;
+      if (state.firstMove) {
+        placeMines(cell);
+        state.firstMove = false;
+        startTimer();
+      }
+      state.status = 'playing';
+      state.moves++;
+      if (cell.mine) {
+        revealMineLoss(cell);
+        return;
+      }
+      playSound('open');
+      vibrate(10);
+      if (cell.adjacent === 0) revealEmptyArea(cell);
+      else revealCell(cell, 0, false);
+      updateHud();
+      setTimeout(checkWin, 60);
+    }
+
+    function revealEmptyArea(start) {
+      const queue = [start];
+      const seen = new Set([cellKey(start.x, start.y)]);
+      const ordered = [];
+      while (queue.length) {
+        const cell = queue.shift();
+        ordered.push(cell);
+        if (cell.adjacent !== 0) continue;
+        forEachNeighbor(cell.x, cell.y, false, (near) => {
+          if (!seen.has(cellKey(near.x, near.y)) && !near.flagged && !near.mine) {
+            seen.add(cellKey(near.x, near.y));
+            queue.push(near);
+          }
+        });
+      }
+      state.actionLock = true;
+      ordered.forEach((cell, i) => revealCell(cell, Math.min(i * 26, 520), true));
+      setTimeout(() => { state.actionLock = false; checkWin(); }, Math.min(ordered.length * 26, 560) + 120);
+    }
+
+    function revealMineLoss(hit) {
+      state.status = 'lost';
+      state.actionLock = true;
+      stopTimer();
+      playSound('explode');
+      vibrate([30, 50, 80]);
+      explodeAtCell(hit, 0);
+      const mines = [];
+      for (const row of state.board) for (const cell of row) if (cell.mine) mines.push(cell);
+      mines.sort((a, b) => Math.hypot(a.x - hit.x, a.y - hit.y) - Math.hypot(b.x - hit.x, b.y - hit.y));
+      mines.forEach((cell, i) => {
+        setTimeout(() => {
+          if (!cell.revealed) revealCell(cell, 0, false);
+          addMineToCell(cell, 0);
+          if (cell !== hit) explodeAtCell(cell, 60);
+        }, i * 70);
+      });
+      for (const row of state.board) for (const cell of row) if (cell.flagged && !cell.mine) addWrongFlag(cell);
+      setTimeout(() => finishGame(false), Math.min(1200, mines.length * 70 + 350));
+    }
+
+    function explodeAtCell(cell, delay = 0) {
+      setTimeout(() => {
+        const pos = new THREE.Vector3();
+        cell.group.getWorldPosition(pos);
+        makeExplosion(pos);
+        cameraShake = Math.max(cameraShake, .18);
+      }, delay);
+    }
+
+    function makeExplosion(pos) {
+      const t = theme();
+      const count = settings.quality === 'low' ? 26 : 58;
+      const g = new THREE.BufferGeometry();
+      const positions = new Float32Array(count * 3);
+      const velocity = [];
+      for (let i = 0; i < count; i++) {
+        positions[i * 3] = pos.x;
+        positions[i * 3 + 1] = pos.y + .4;
+        positions[i * 3 + 2] = pos.z;
+        const v = new THREE.Vector3(Math.random() - .5, Math.random() * .9, Math.random() - .5).normalize().multiplyScalar(.05 + Math.random() * .1);
+        velocity.push(v);
+      }
+      g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.PointsMaterial({ color: t.danger, size: .075, transparent: true, opacity: 1, depthWrite: false });
+      const points = new THREE.Points(g, mat);
+      points.userData.velocity = velocity;
+      points.userData.life = 1;
+      effectGroup.add(points);
+      animations.push({ kind: 'particles', obj: points });
+      const wave = new THREE.Mesh(new THREE.RingGeometry(.05, .08, 42), new THREE.MeshBasicMaterial({ color: t.danger, transparent: true, opacity: .7, side: THREE.DoubleSide }));
+      wave.rotation.x = -Math.PI / 2;
+      wave.position.copy(pos);
+      wave.position.y += .28;
+      effectGroup.add(wave);
+      animate(wave.scale, { x: 9, y: 9, z: 9 }, 520, easeOutCubic, 0, { x: .1, y: .1, z: .1 }, () => effectGroup.remove(wave));
+      animate(wave.material, { opacity: 0 }, 520, easeOutCubic, 0);
+    }
+
+    function checkWin() {
+      if (state.status !== 'playing' && state.status !== 'ready') return;
+      const safe = state.size * state.size - state.mines;
+      if (state.revealed >= safe) {
+        stopTimer();
+        state.actionLock = true;
+        for (const row of state.board) for (const cell of row) if (cell.mine && !cell.flagged) toggleFlag(cell, false);
+        state.status = 'won';
+        victoryEffect();
+        setTimeout(() => finishGame(true), 900);
+      }
+    }
+
+    function victoryEffect() {
+      playSound('win');
+      vibrate([35, 30, 35]);
+      const t = theme();
+      for (const row of state.board) {
+        for (const cell of row) {
+          animate(cell.mesh.material, { emissiveIntensity: .25 }, 340, easeOutCubic, (cell.x + cell.y) * 35, null, () => {
+            animate(cell.mesh.material, { emissiveIntensity: .06 }, 520, easeOutCubic, 0);
+          });
+        }
+      }
+      for (let i = 0; i < 7; i++) {
+        setTimeout(() => makeExplosion(new THREE.Vector3((Math.random() - .5) * 4, 1.2 + Math.random() * 2, (Math.random() - .5) * 4)), i * 115);
+      }
+    }
+
+    function finishGame(won) {
+      state.actionLock = false;
+      const difficultyName = difficulties[selectedDifficulty]?.name || 'Пользовательский';
+      if (won) saveBest(state.key, state.elapsed);
+      updateHud();
+      ui.resultTitle.textContent = won ? 'Победа' : 'Мина взорвалась';
+      ui.resultText.textContent = won ? 'Ты очистил поле без взрыва.' : 'Опасное ядро сработало. Все мины показаны на поле.';
+      const openedPercent = Math.round(state.revealed / (state.size * state.size) * 100);
+      ui.resultStats.innerHTML = `
+        <div><span>Время</span><b>${formatTime(state.elapsed)}</b></div>
+        <div><span>Сложность</span><b>${difficultyName}</b></div>
+        <div><span>Ходы</span><b>${state.moves}</b></div>
+        <div><span>Флаги</span><b>${state.flags}</b></div>
+        <div><span>Открыто</span><b>${openedPercent}%</b></div>
+        <div><span>Рекорд</span><b>${formatBest(state.key)}</b></div>`;
+      ui.resultActions.innerHTML = '';
+      addResultButton(won ? 'Сыграть снова' : 'Повторить', 'play', () => startNewGame(state.key, state.size, state.mines));
+      addResultButton('В меню', '', () => { showScreen('menu'); state.status = 'menu'; makeMenuScene(); });
+      if (won && selectedDifficulty !== 'expert' && selectedDifficulty !== 'custom') addResultButton('Следующая сложность', 'play', nextDifficulty);
+      showScreen('result');
+    }
+
+    function addResultButton(text, kind, fn) {
+      const btn = document.createElement('button');
+      btn.className = 'big-btn' + (kind === 'play' ? ' play' : '');
+      btn.innerHTML = `<strong>${text}</strong>`;
+      btn.addEventListener('click', () => { playSound('button'); fn(); });
+      ui.resultActions.appendChild(btn);
+    }
+
+    function nextDifficulty() {
+      const order = ['beginner', 'medium', 'hard', 'expert'];
+      const idx = order.indexOf(selectedDifficulty);
+      selectedDifficulty = order[Math.min(order.length - 1, idx + 1)];
+      const cfg = difficulties[selectedDifficulty];
+      startNewGame(selectedDifficulty, cfg.size, cfg.mines);
+    }
+
+    function formatBest(key) {
+      const best = loadBest(key);
+      return best ? formatTime(best) : '—';
+    }
+
+    function startTimer() {
+      state.timerStarted = true;
+      state.startTime = performance.now() - state.elapsed * 1000;
+    }
+
+    function stopTimer() {
+      if (state.timerStarted) {
+        state.elapsed = Math.floor((performance.now() - state.startTime) / 1000);
+        state.timerStarted = false;
+      }
+    }
+
+    function updateHud() {
+      if (state.timerStarted) state.elapsed = Math.floor((performance.now() - state.startTime) / 1000);
+      ui.time.textContent = formatTime(state.elapsed);
+      ui.mines.textContent = Math.max(0, state.mines - state.flags);
+      ui.flags.textContent = `${state.flags}/${state.mines}`;
+      ui.best.textContent = formatBest(state.key);
+    }
+
+    function setMode(next) {
+      mode = next;
+      updateModeButtons();
+      playSound('button');
+      toast(next === 'flag' ? 'Режим флага включен.' : 'Режим открытия включен.');
+    }
+
+    function updateModeButtons() {
+      ui.openMode.classList.toggle('active', mode === 'open');
+      ui.flagMode.classList.toggle('active', mode === 'flag');
+    }
+
+    function pauseGame() {
+      if (state.status !== 'playing' && state.status !== 'ready') return;
+      stopTimer();
+      state.status = 'paused';
+      showScreen('pause');
+    }
+
+    function resumeGame() {
+      if (state.status !== 'paused') return;
+      state.status = state.revealed > 0 ? 'playing' : 'ready';
+      if (state.revealed > 0) startTimer();
+      showScreen('none');
+    }
+
+    function giveHint() {
+      if (state.status !== 'playing' && state.status !== 'ready') return;
+      const candidates = [];
+      for (const row of state.board) for (const cell of row) if (!cell.revealed && !cell.flagged && (!state.firstMove ? !cell.mine : true)) candidates.push(cell);
+      if (!candidates.length) return;
+      const cell = candidates[Math.floor(Math.random() * candidates.length)];
+      const old = cell.mesh.material.emissiveIntensity;
+      animate(cell.mesh.material, { emissiveIntensity: .48 }, 180, easeOutCubic, 0, null, () => animate(cell.mesh.material, { emissiveIntensity: old }, 520, easeOutCubic));
+      toast('Подсказка подсветила безопасный куб.');
+      playSound('button');
+    }
+
+    function resetCamera(instant = false) {
+      const s = state.size || 8;
+      const dist = clamp(s * 1.8, 9.2, 22);
+      const target = { x: 0, y: dist * .72, z: dist * 1.02 };
+      if (instant) camera.position.set(target.x, target.y, target.z);
+      else animate(camera.position, target, 420, easeOutCubic);
+      camera.lookAt(0, 0, 0);
+    }
+
+    function resize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      resetCamera(true);
+    }
+
+    const input = { down: false, moved: false, id: null, x: 0, y: 0, lastX: 0, lastY: 0, target: null, longTimer: 0, longDone: false };
+
+    canvas.addEventListener('pointerdown', (e) => {
+      if (activeScreen !== 'none' || state.status === 'paused') return;
+      input.down = true;
+      input.id = e.pointerId;
+      input.x = input.lastX = e.clientX;
+      input.y = input.lastY = e.clientY;
+      input.moved = false;
+      input.longDone = false;
+      input.target = pickCell(e.clientX, e.clientY);
+      canvas.setPointerCapture?.(e.pointerId);
+      clearTimeout(input.longTimer);
+      input.longTimer = setTimeout(() => {
+        if (input.down && !input.moved && input.target && mode === 'open') {
+          input.longDone = true;
+          toggleFlag(input.target);
+        }
+      }, 470);
+    }, { passive: true });
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (!input.down || e.pointerId !== input.id) return;
+      const dx = e.clientX - input.lastX;
+      const dy = e.clientY - input.lastY;
+      const totalMove = Math.hypot(e.clientX - input.x, e.clientY - input.y);
+      if (totalMove > 9) {
+        input.moved = true;
+        clearTimeout(input.longTimer);
+      }
+      if (input.moved) {
+        boardGroup.rotation.y += dx * .006;
+        boardGroup.rotation.x = clamp(boardGroup.rotation.x + dy * .004, -0.82, -0.22);
+        boardGroup.rotation.z = clamp(boardGroup.rotation.z + dx * .0012, -0.45, 0.45);
+      }
+      input.lastX = e.clientX;
+      input.lastY = e.clientY;
+    }, { passive: true });
+
+    canvas.addEventListener('pointerup', (e) => {
+      if (e.pointerId !== input.id) return;
+      clearTimeout(input.longTimer);
+      if (!input.moved && !input.longDone && input.target) {
+        if (mode === 'flag') toggleFlag(input.target);
+        else openCell(input.target);
+      }
+      input.down = false;
+      input.id = null;
+    }, { passive: true });
+
+    canvas.addEventListener('pointercancel', () => {
+      clearTimeout(input.longTimer);
+      input.down = false;
+      input.id = null;
+    }, { passive: true });
+
+    function pickCell(clientX, clientY) {
+      pointer.x = clientX / window.innerWidth * 2 - 1;
+      pointer.y = -(clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(cellMeshes, false);
+      return hits[0]?.object?.userData?.cell || null;
+    }
+
+    function animate(target, to, duration, easing = easeOutCubic, delay = 0, from = null, done = null) {
+      const start = performance.now() + delay;
+      const initial = {};
+      for (const key of Object.keys(to)) initial[key] = from && from[key] !== undefined ? from[key] : target[key];
+      if (from) for (const [key, value] of Object.entries(from)) target[key] = value;
+      animations.push({ kind: 'tween', target, to, initial, duration, easing, start, done });
+    }
+
+    function updateAnimations(now) {
+      for (let i = animations.length - 1; i >= 0; i--) {
+        const a = animations[i];
+        if (a.kind === 'particles') {
+          const p = a.obj;
+          p.userData.life -= .025;
+          const arr = p.geometry.attributes.position.array;
+          const vel = p.userData.velocity;
+          for (let j = 0; j < vel.length; j++) {
+            arr[j * 3] += vel[j].x;
+            arr[j * 3 + 1] += vel[j].y;
+            arr[j * 3 + 2] += vel[j].z;
+            vel[j].y -= .003;
+          }
+          p.geometry.attributes.position.needsUpdate = true;
+          p.material.opacity = Math.max(0, p.userData.life);
+          if (p.userData.life <= 0) {
+            effectGroup.remove(p);
+            p.geometry.dispose();
+            p.material.dispose();
+            animations.splice(i, 1);
+          }
+          continue;
+        }
+        if (now < a.start) continue;
+        const p = clamp((now - a.start) / a.duration, 0, 1);
+        const k = a.easing(p);
+        for (const key of Object.keys(a.to)) a.target[key] = a.initial[key] + (a.to[key] - a.initial[key]) * k;
+        if (p >= 1) {
+          animations.splice(i, 1);
+          a.done?.();
+        }
+      }
+    }
+
+    function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+    function easeInCubic(t) { return t * t * t; }
+    function easeOutBack(t) { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); }
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    let audioCtx = null;
+    function getAudio() {
+      if (!settings.sound) return null;
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function playSound(type) {
+      const ctx = getAudio();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const gain = ctx.createGain();
+      gain.connect(ctx.destination);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.exponentialRampToValueAtTime(type === 'explode' ? .18 : .08, now + .012);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (type === 'explode' ? .45 : .18));
+      const osc = ctx.createOscillator();
+      osc.connect(gain);
+      osc.type = type === 'flag' ? 'triangle' : type === 'explode' ? 'sawtooth' : 'sine';
+      const freq = { open: 520, flag: 760, unflag: 390, win: 880, explode: 90, button: 440 }[type] || 480;
+      osc.frequency.setValueAtTime(freq, now);
+      if (type === 'open') osc.frequency.exponentialRampToValueAtTime(720, now + .12);
+      if (type === 'win') osc.frequency.exponentialRampToValueAtTime(1320, now + .22);
+      if (type === 'explode') osc.frequency.exponentialRampToValueAtTime(42, now + .38);
+      osc.start(now);
+      osc.stop(now + (type === 'explode' ? .5 : .22));
+      if (type === 'explode') {
+        const noise = ctx.createBufferSource();
+        const buffer = ctx.createBuffer(1, ctx.sampleRate * .28, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+        const ng = ctx.createGain();
+        ng.gain.setValueAtTime(.12, now);
+        ng.gain.exponentialRampToValueAtTime(.001, now + .28);
+        noise.buffer = buffer;
+        noise.connect(ng).connect(ctx.destination);
+        noise.start(now);
+      }
+    }
+
+    function vibrate(pattern) {
+      if (settings.vibration && navigator.vibrate) navigator.vibrate(pattern);
+    }
+
+    function updateSettingsUi() {
+      ui.quality.value = settings.quality;
+      ui.theme.value = settings.theme;
+      setToggle(ui.soundToggle, settings.sound);
+      setToggle(ui.vibrationToggle, settings.vibration);
+      setToggle(ui.particlesToggle, settings.particles);
+      setToggle(ui.cameraToggle, settings.cameraMotion);
+    }
+
+    function setToggle(btn, value) {
+      btn.textContent = value ? 'Вкл' : 'Выкл';
+      btn.classList.toggle('on', value);
+    }
+
+    function bindUi() {
+      buildDifficultyMenu();
+      updateSettingsUi();
+      document.getElementById('playBtn').addEventListener('click', startFromMenu);
+      document.getElementById('howBtn').addEventListener('click', () => { showScreen('how'); playSound('button'); });
+      document.getElementById('howBackBtn').addEventListener('click', () => { showScreen('menu'); playSound('button'); });
+      document.getElementById('howPlayBtn').addEventListener('click', startFromMenu);
+      document.getElementById('menuSettingsBtn').addEventListener('click', () => { updateSettingsUi(); showScreen('settings'); playSound('button'); });
+      document.getElementById('settingsBtn').addEventListener('click', () => { pauseGame(); updateSettingsUi(); showScreen('settings'); playSound('button'); });
+      document.getElementById('pauseBtn').addEventListener('click', () => { pauseGame(); playSound('button'); });
+      document.getElementById('cameraResetBtn').addEventListener('click', () => { resetCamera(); playSound('button'); toast('Камера сброшена.'); });
+      document.getElementById('settingsBackBtn').addEventListener('click', () => { showScreen(state.status === 'paused' ? 'pause' : 'menu'); playSound('button'); });
+      document.getElementById('settingsDoneBtn').addEventListener('click', () => { saveSettings(); showScreen(state.status === 'paused' ? 'pause' : activeScreen === 'settings' && state.status !== 'menu' ? 'none' : 'menu'); playSound('button'); });
+      document.getElementById('newBtn').addEventListener('click', () => startNewGame(state.key, state.size, state.mines));
+      document.getElementById('hintBtn').addEventListener('click', giveHint);
+      ui.openMode.addEventListener('click', () => setMode('open'));
+      ui.flagMode.addEventListener('click', () => setMode('flag'));
+      document.getElementById('resumeBtn').addEventListener('click', () => { resumeGame(); playSound('button'); });
+      document.getElementById('pauseSettingsBtn').addEventListener('click', () => { updateSettingsUi(); showScreen('settings'); playSound('button'); });
+      document.getElementById('pauseMenuBtn').addEventListener('click', () => { state.status = 'menu'; showScreen('menu'); makeMenuScene(); playSound('button'); });
+      ui.quality.addEventListener('change', () => { settings.quality = ui.quality.value; saveSettings(); applyQuality(); toast('Качество изменено.'); });
+      ui.theme.addEventListener('change', () => { settings.theme = ui.theme.value; saveSettings(); applyCssTheme(); build3DBoard(state.size || 6); makeMenuScene(); toast('Тема изменена.'); });
+      ui.soundToggle.addEventListener('click', () => { settings.sound = !settings.sound; setToggle(ui.soundToggle, settings.sound); saveSettings(); playSound('button'); });
+      ui.vibrationToggle.addEventListener('click', () => { settings.vibration = !settings.vibration; setToggle(ui.vibrationToggle, settings.vibration); saveSettings(); vibrate(18); });
+      ui.particlesToggle.addEventListener('click', () => { settings.particles = !settings.particles; setToggle(ui.particlesToggle, settings.particles); saveSettings(); makeParticles(state.size || 8); makeMenuScene(); });
+      ui.cameraToggle.addEventListener('click', () => { settings.cameraMotion = !settings.cameraMotion; setToggle(ui.cameraToggle, settings.cameraMotion); saveSettings(); });
+      ui.customSize.addEventListener('input', syncCustomLimits);
+      ui.customMines.addEventListener('input', syncCustomLimits);
+      window.addEventListener('resize', resize);
+      document.addEventListener('visibilitychange', () => { if (document.hidden && state.status === 'playing') pauseGame(); });
+      ui.hint.addEventListener('dblclick', resetCamera);
+      ui.hint.addEventListener('click', () => toast('Двойное нажатие по подсказке сбросит камеру.'));
+    }
+
+    function syncCustomLimits() {
+      const size = clamp(Math.round(Number(ui.customSize.value) || 8), 5, 12);
+      const maxMines = Math.max(1, size * size - 9);
+      ui.customMines.max = maxMines;
+      if (Number(ui.customMines.value) > maxMines) ui.customMines.value = maxMines;
+    }
+
+    function loop(now) {
+      requestAnimationFrame(loop);
+      const dt = Math.min(.05, (now - lastTime) / 1000);
+      lastTime = now;
+      updateAnimations(now);
+      updateHud();
+      if (settings.cameraMotion && activeScreen === 'menu') {
+        autoCameraTime += dt;
+        camera.position.x = Math.sin(autoCameraTime * .35) * .45;
+        camera.position.y = 5.7 + Math.sin(autoCameraTime * .27) * .15;
+        camera.position.z = 8.9;
+        camera.lookAt(0, 0, -1.4);
+      } else if (activeScreen !== 'menu') {
+        camera.lookAt(0, 0, 0);
+      }
+      if (particleSystem) particleSystem.rotation.y += dt * .04;
+      if (menuGroup.visible) menuGroup.rotation.y = Math.sin(now * .00035) * .08;
+      if (cameraShake > .001) {
+        camera.position.x += (Math.random() - .5) * cameraShake;
+        camera.position.y += (Math.random() - .5) * cameraShake;
+        cameraShake *= .86;
+      }
+      renderer.render(scene, camera);
+    }
+
+    function boot() {
+      applyCssTheme();
+      applyQuality();
+      bindUi();
+      buildLogicalBoard(6);
+      build3DBoard(6);
+      makeMenuScene();
+      resetCamera(true);
+      showScreen('menu');
+      requestAnimationFrame(loop);
+    }
+
+    boot();
+  </script>
+</body>
+</html>
