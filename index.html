@@ -985,30 +985,70 @@
 
     function makeNumberTexture(n) {
       const t = theme();
-      const key = `${settings.theme}_${n}`;
+      const key = `${settings.theme}_${n}_clear_v2`;
       if (textureCache.has(key)) return textureCache.get(key);
       const c = document.createElement('canvas');
-      c.width = 192;
-      c.height = 192;
+      c.width = 256;
+      c.height = 256;
       const ctx = c.getContext('2d');
       ctx.clearRect(0, 0, c.width, c.height);
-      ctx.font = '900 112px system-ui, sans-serif';
+
+      const colors = {
+        1: '#39dfff',
+        2: '#70ff9d',
+        3: '#ffe15f',
+        4: '#ff9b55',
+        5: '#ff527f',
+        6: '#b884ff',
+        7: '#f0f6ff',
+        8: '#ffffff'
+      };
+
+      ctx.save();
+      ctx.translate(128, 132);
+      ctx.fillStyle = 'rgba(2, 6, 16, .62)';
+      ctx.shadowColor = 'rgba(0, 0, 0, .65)';
+      ctx.shadowBlur = 18;
+      roundRect(ctx, -56, -65, 112, 118, 26);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.font = '900 148px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const colors = ['#ffffff', '#3ddfff', '#73ffad', '#ffe06e', '#ff9e5e', '#ff5d8f', '#b58cff', '#f1f4ff', '#ffffff'];
-      ctx.shadowColor = 'rgba(0,0,0,.65)';
-      ctx.shadowBlur = 10;
-      ctx.lineWidth = 12;
-      ctx.strokeStyle = 'rgba(3,7,16,.82)';
-      ctx.strokeText(String(n), 96, 98);
+      ctx.lineJoin = 'round';
+      ctx.miterLimit = 2;
+      ctx.shadowColor = 'rgba(0, 0, 0, .92)';
+      ctx.shadowBlur = 13;
+      ctx.lineWidth = 18;
+      ctx.strokeStyle = 'rgba(0, 0, 0, .92)';
+      ctx.strokeText(String(n), 128, 132);
       ctx.shadowColor = t.accent;
-      ctx.shadowBlur = 15;
-      ctx.fillStyle = colors[n] || '#fff';
-      ctx.fillText(String(n), 96, 98);
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = colors[n] || '#ffffff';
+      ctx.fillText(String(n), 128, 132);
+
       const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      tex.needsUpdate = true;
       textureCache.set(key, tex);
       return tex;
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      const radius = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + w - radius, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+      ctx.lineTo(x + w, y + h - radius);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      ctx.lineTo(x + radius, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
     }
 
     function revealCell(cell, delay = 0, wave = false) {
@@ -1031,15 +1071,23 @@
     }
 
     function addNumber(cell) {
-      const mat = new THREE.MeshBasicMaterial({ map: makeNumberTexture(cell.adjacent), transparent: true, depthWrite: false });
-      const p = new THREE.Mesh(geom.plane, mat);
-      p.rotation.x = -Math.PI / 2;
-      p.position.y = .405;
-      p.renderOrder = 5;
-      cell.group.add(p);
-      cell.numberObj = p;
-      p.scale.set(.08, .08, .08);
-      animate(p.scale, { x: 1, y: 1, z: 1 }, 240, easeOutBack, 0);
+      if (!cell || cell.adjacent <= 0 || cell.numberObj) return;
+      const mat = new THREE.SpriteMaterial({
+        map: makeNumberTexture(cell.adjacent),
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        sizeAttenuation: true
+      });
+      mat.toneMapped = false;
+      const label = new THREE.Sprite(mat);
+      label.position.set(0, .55, 0);
+      label.renderOrder = 50;
+      label.userData.isNumber = true;
+      cell.group.add(label);
+      cell.numberObj = label;
+      label.scale.set(.06, .06, 1);
+      animate(label.scale, { x: .78, y: .78, z: 1 }, 250, easeOutBack, 0);
     }
 
     function toggleFlag(cell, countMove = true) {
@@ -1135,7 +1183,12 @@
 
     function openCell(cell) {
       if (state.actionLock || state.status === 'paused' || state.status === 'won' || state.status === 'lost') return;
-      if (!cell || cell.revealed || cell.flagged) return;
+      if (!cell) return;
+      if (cell.revealed) {
+        chordCell(cell);
+        return;
+      }
+      if (cell.flagged) return;
       if (state.firstMove) {
         placeMines(cell);
         state.firstMove = false;
@@ -1155,24 +1208,96 @@
       setTimeout(checkWin, 60);
     }
 
-    function revealEmptyArea(start) {
+    function chordCell(cell) {
+      if (!cell.revealed || cell.adjacent <= 0 || state.firstMove) return;
+      const flagsAround = countFlagsAround(cell);
+      if (flagsAround !== cell.adjacent) {
+        pulseCell(cell);
+        toast(`Вокруг нужно ${cell.adjacent} флагов.`);
+        return;
+      }
+
+      const toReveal = [];
+      const seen = new Set();
+      let hitMine = null;
+      forEachNeighbor(cell.x, cell.y, false, (near) => {
+        if (near.revealed || near.flagged) return;
+        if (near.mine) {
+          hitMine = near;
+          return;
+        }
+        const group = collectRevealArea(near, seen);
+        for (const item of group) toReveal.push(item);
+      });
+
+      if (hitMine) {
+        state.moves++;
+        revealMineLoss(hitMine);
+        return;
+      }
+      if (!toReveal.length) return;
+      state.moves++;
+      playSound('open');
+      vibrate(10);
+      revealCellsWave(toReveal);
+      updateHud();
+    }
+
+    function countFlagsAround(cell) {
+      let count = 0;
+      forEachNeighbor(cell.x, cell.y, false, (near) => { if (near.flagged) count++; });
+      return count;
+    }
+
+    function pulseCell(cell) {
+      if (!cell?.mesh?.material) return;
+      const old = cell.mesh.material.emissiveIntensity;
+      animate(cell.mesh.material, { emissiveIntensity: .42 }, 120, easeOutCubic, 0, null, () => {
+        animate(cell.mesh.material, { emissiveIntensity: old }, 260, easeOutCubic, 0);
+      });
+      if (cell.numberObj) {
+        animate(cell.numberObj.scale, { x: .95, y: .95, z: 1 }, 110, easeOutBack, 0, null, () => {
+          animate(cell.numberObj.scale, { x: .78, y: .78, z: 1 }, 180, easeOutCubic, 0);
+        });
+      }
+    }
+
+    function collectRevealArea(start, seen = new Set()) {
+      if (!start || start.mine || start.flagged || start.revealed) return [];
+      const firstKey = cellKey(start.x, start.y);
+      if (seen.has(firstKey)) return [];
       const queue = [start];
-      const seen = new Set([cellKey(start.x, start.y)]);
       const ordered = [];
+      seen.add(firstKey);
       while (queue.length) {
         const cell = queue.shift();
+        if (cell.revealed || cell.flagged || cell.mine) continue;
         ordered.push(cell);
         if (cell.adjacent !== 0) continue;
         forEachNeighbor(cell.x, cell.y, false, (near) => {
-          if (!seen.has(cellKey(near.x, near.y)) && !near.flagged && !near.mine) {
-            seen.add(cellKey(near.x, near.y));
+          const key = cellKey(near.x, near.y);
+          if (!seen.has(key) && !near.revealed && !near.flagged && !near.mine) {
+            seen.add(key);
             queue.push(near);
           }
         });
       }
+      return ordered;
+    }
+
+    function revealCellsWave(cells) {
+      if (!cells.length) return;
       state.actionLock = true;
-      ordered.forEach((cell, i) => revealCell(cell, Math.min(i * 26, 520), true));
-      setTimeout(() => { state.actionLock = false; checkWin(); }, Math.min(ordered.length * 26, 560) + 120);
+      cells.forEach((cell, i) => revealCell(cell, Math.min(i * 24, 520), true));
+      setTimeout(() => {
+        state.actionLock = false;
+        updateHud();
+        checkWin();
+      }, Math.min(cells.length * 24, 560) + 140);
+    }
+
+    function revealEmptyArea(start) {
+      revealCellsWave(collectRevealArea(start));
     }
 
     function revealMineLoss(hit) {
